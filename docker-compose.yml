@@ -1,0 +1,75 @@
+version: '3'
+services:
+        
+      
+  #Nginx Service
+  webserver:
+    image: nginx:alpine
+    container_name: webserver
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./laravel:/var/www/laravel
+      - ./nginx/conf.d/:/etc/nginx/conf.d/
+      - ./certs/:/var/www/httpd-cert/
+    depends_on:
+      - app
+    networks:
+      - app-network
+ 
+  #MySQL Service
+  db:
+    platform: linux/amd64
+    image: mariadb:latest
+    container_name: db
+    tty: true
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: temaparser_db
+      MYSQL_ROOT_PASSWORD: temaparser_password
+      SERVICE_TAGS: dev
+      SERVICE_NAME: mysql
+      EXPOSE: 3306
+    volumes:
+      - dbdata:/var/lib/mysql/
+      - ./mysql/setup.sql:/docker-entrypoint-initdb.d/setup.sql
+      - ./mysql/my.cnf:/etc/mysql/my.cnf
+      - ./tmp/mysqld:/var/lib/mysql/
+    networks:
+      - app-network
+      
+  #PHP Service
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: bitnami/php-fpm
+    container_name: app
+    restart: unless-stopped
+    tty: true
+    environment:
+      SERVICE_NAME: app
+      SERVICE_TAGS: dev
+    working_dir: /var/www
+    volumes:
+      - ./laravel/:/var/www/laravel
+      - ./php/local.ini:/opt/bitnami/php/etc/conf.d/local.ini
+      - ./tmp/mysqld:/var/lib/mysql/
+    depends_on:
+      - db  
+    networks:
+      - app-network  
+
+      
+#Docker Networks
+networks:
+  app-network:
+    driver: bridge
+#Volumes
+volumes:
+  dbdata:
+    driver: local
